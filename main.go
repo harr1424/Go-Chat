@@ -23,6 +23,7 @@ type Hub struct {
 	broadcast  chan []byte
 	register   chan *Client
 	unregister chan *Client
+	history    [][]byte
 }
 
 func newHub() *Hub {
@@ -31,6 +32,7 @@ func newHub() *Hub {
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		clients:    make(map[*Client]bool),
+		history:    make([][]byte, 0),
 	}
 }
 
@@ -38,6 +40,9 @@ func (h *Hub) run() {
 	for {
 		select {
 		case client := <-h.register:
+			for _, message := range h.history {
+				client.send <- message
+			}
 			h.clients[client] = true
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
@@ -45,6 +50,7 @@ func (h *Hub) run() {
 				close(client.send)
 			}
 		case message := <-h.broadcast:
+			h.history = append(h.history, message)
 			for client := range h.clients {
 				select {
 				case client.send <- message:
